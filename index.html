@@ -67,7 +67,7 @@
     align-items:center; justify-content:center; padding:16px; z-index:50; }
   .overlay.open{ display:flex; }
   .modal{ background:var(--panel); border-radius:12px; box-shadow:0 20px 50px rgba(0,0,0,.25);
-    width:100%; max-width:600px; max-height:90vh; display:flex; flex-direction:column; }
+    width:100%; max-width:680px; max-height:90vh; display:flex; flex-direction:column; }
   .modal-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--line); }
   .modal-head .lab{ font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--faint); font-weight:600; }
   .modal-head .ttl{ font-size:18px; font-weight:700; line-height:1.2; }
@@ -88,6 +88,21 @@
   .daterange{ margin-left:auto; color:var(--faint); }
   .wk{ background:#fef2f2; color:var(--red); border-radius:6px; padding:2px 8px; font-weight:600; }
   .empty-msg{ color:var(--muted); font-size:13px; text-align:center; padding:24px 0; }
+  .grid-hint{ font-size:12px; color:var(--muted); margin-bottom:10px; }
+  .eqgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(46px,1fr)); gap:6px; }
+  .eqbox{ aspect-ratio:1/1; display:flex; align-items:center; justify-content:center; border-radius:8px;
+    font-size:12px; font-weight:600; border:1px solid var(--line); background:var(--line2); color:var(--faint); user-select:none; }
+  .eqbox.on{ background:var(--red); color:#fff; border-color:var(--red); cursor:pointer; box-shadow:0 2px 6px rgba(226,87,76,.3); transition:transform .1s; }
+  .eqbox.on:hover{ transform:scale(1.08); }
+  .legend{ display:flex; gap:18px; align-items:center; padding:10px 2px 2px; font-size:12px; color:var(--muted);
+    border-top:1px solid var(--line); margin-top:12px; position:sticky; bottom:-12px; background:var(--panel); }
+  .legend .sw{ display:inline-flex; align-items:center; gap:7px; }
+  .legend .box{ width:14px; height:14px; border-radius:4px; border:1px solid var(--line); }
+  .legend .box.on{ background:var(--red); border-color:var(--red); }
+  .legend .box.off{ background:var(--line2); }
+  .legend .count{ margin-left:auto; color:var(--faint); }
+  .backbtn{ width:32px; height:32px; border:1px solid var(--line); background:#fff; border-radius:8px; cursor:pointer; font-size:16px; color:var(--muted); flex-shrink:0; }
+  .backbtn:hover{ background:var(--line2); }
 
   @media (max-width:560px){
     body{ padding:14px; }
@@ -133,14 +148,17 @@
 <div class="overlay" id="overlay">
   <div class="modal" id="modal">
     <div class="modal-head">
-      <div>
-        <div class="lab">Jadwal PM</div>
-        <div class="ttl" id="m-title">&mdash;</div>
+      <div style="display:flex; align-items:center; gap:10px; min-width:0">
+        <button class="backbtn" id="m-back" title="Kembali" style="display:none">&larr;</button>
+        <div style="min-width:0">
+          <div class="lab" id="m-lab">Equipment</div>
+          <div class="ttl" id="m-title">&mdash;</div>
+        </div>
       </div>
       <div style="display:flex; align-items:center; gap:12px">
         <div style="text-align:right">
           <div class="cnt mono" id="m-count">0</div>
-          <div class="cnt-lab">jadwal</div>
+          <div class="cnt-lab" id="m-count-lab">terjadwal</div>
         </div>
         <button class="x" id="m-close">&times;</button>
       </div>
@@ -154,6 +172,7 @@
   var WEEKS=["W1","W2","W3","W4","W5"];
 
   var rawEntries=[];          // entri mentah dari Excel (punya nomor minggu)
+  var masterRows=[];          // daftar baris equipment (master) utk grid kotak kecil
   var cellEntries=[];         // [wom 0..4][month 0..11] -> array entri (hasil pemetaan tahun)
   function emptyCells(){ var a=[]; for(var w=0;w<5;w++){a.push([]);for(var m=0;m<12;m++)a[w].push([]);} return a; }
   cellEntries=emptyCells();
@@ -208,7 +227,7 @@
     }
     if(weekCols.length===0) throw new Error("Tidak ada kolom minggu (W01, W02, ...).");
 
-    var raw=[], taskSet={}, taskCount=0;
+    var raw=[], taskSet={}, taskCount=0, masters=[];
     for(var r=hr+1;r<rows.length;r++){
       var row=rows[r]; if(!row) continue;
       var eq=String(row[cEq]||"").trim();
@@ -223,6 +242,8 @@
         pic:cPic>=0?String(row[cPic]||"").trim():"",
         status:cStat>=0?String(row[cStat]||"").trim():""
       };
+      var rowId=masters.length;
+      masters.push({rowId:rowId,equipment:eq,subassy:base.subassy,component:base.component,action:base.action,task:base.task,pic:base.pic,status:base.status});
       for(var k=0;k<weekCols.length;k++){
         var wc=weekCols[k];
         var v=String(row[wc.col]||"").trim();
@@ -230,12 +251,12 @@
           var pic=base.pic;
           if(wc.picCol>=0){ var p2=String(row[wc.picCol]||"").trim(); if(p2) pic=p2; }
           var e={}; for(var key in base) e[key]=base[key];
-          e.pic=pic; e.week=wc.wk; e.mark=v;
+          e.pic=pic; e.week=wc.wk; e.mark=v; e.rowId=rowId;
           raw.push(e);
         }
       }
     }
-    return {raw:raw, tasks:taskCount, distinct:Object.keys(taskSet).length, sched:raw.length, weeks:weekCols.length};
+    return {raw:raw, masters:masters, tasks:taskCount, distinct:Object.keys(taskSet).length, sched:raw.length, weeks:weekCols.length};
   }
 
   // tempatkan entri mentah ke sel sesuai tahun terpilih
@@ -284,35 +305,77 @@
   }
 
   var overlay=document.getElementById("overlay");
+  var curCell=null;
   function openCell(wi,mi){
-    var list=cellEntries[wi][mi];
-    document.getElementById("m-title").textContent=MONTHS[mi]+" \u00B7 "+WEEKS[wi];
-    document.getElementById("m-count").textContent=list.length;
-    var body=document.getElementById("m-body");
-    if(list.length===0){ body.innerHTML='<div class="empty-msg">Tidak ada jadwal di sel ini.</div>'; }
-    else{
-      var html="";
-      list.forEach(function(e){
-        var picHtml=e.pic?'<span class="pic">PIC: '+esc(e.pic)+'</span>':'<span class="pic none">PIC: -</span>';
-        var sub='<span class="k">Component:</span> '+esc(e.component||"-")
-              +' &nbsp;&middot;&nbsp; <span class="k">Action:</span> '+esc(e.action||"-")
-              +' &nbsp;&middot;&nbsp; <span class="k">Task:</span> '+esc(e.task||"-");
-        if(e.subassy) sub+=' &nbsp;&middot;&nbsp; <span class="k">Sub Assy:</span> '+esc(e.subassy);
-        html+='<div class="row">'
-            + '<div class="row-eq">'+esc(e.equipment)+'</div>'
-            + '<div class="row-sub">'+sub+'</div>'
-            + '<div class="row-meta">'+picHtml
-            +   (e.status?'<span class="status">'+esc(e.status)+'</span>':'')
-            +   '<span class="wk mono">W'+(e.week<10?"0":"")+e.week+'</span>'
-            +   '<span class="daterange mono">'+esc(e.range)+'</span>'
-            + '</div></div>';
-      });
-      body.innerHTML=html;
-    }
-    body.scrollTop=0; overlay.classList.add("open");
+    curCell={wi:wi,mi:mi};
+    renderGrid();
+    overlay.classList.add("open");
   }
+  function buildScheduledByRow(wi,mi){
+    var map={};
+    cellEntries[wi][mi].forEach(function(e){ (map[e.rowId]=map[e.rowId]||[]).push(e); });
+    return map;
+  }
+  // LEVEL 1: grid kotak kecil — 1 kotak = 1 equipment (baris di Excel)
+  function renderGrid(){
+    var wi=curCell.wi, mi=curCell.mi;
+    var map=buildScheduledByRow(wi,mi);
+    var onIds=Object.keys(map);
+    document.getElementById("m-back").style.display="none";
+    document.getElementById("m-lab").textContent="Equipment";
+    document.getElementById("m-title").textContent=MONTHS[mi]+" \u00B7 "+WEEKS[wi];
+    document.getElementById("m-count").textContent=onIds.length;
+    document.getElementById("m-count-lab").textContent="terjadwal";
+    var body=document.getElementById("m-body");
+    if(masterRows.length===0){ body.innerHTML='<div class="empty-msg">Belum ada data. Upload file Excel dulu.</div>'; body.scrollTop=0; return; }
+    var html='<div class="grid-hint">Kotak berwarna = equipment yang terjadwal di sel ini. Klik kotaknya untuk lihat detail.</div><div class="eqgrid">';
+    masterRows.forEach(function(mrow){
+      var on=!!map[mrow.rowId];
+      var title=esc(mrow.equipment)+(mrow.component?" \u2013 "+esc(mrow.component):"");
+      html+='<div class="eqbox'+(on?' on':'')+'" title="'+title+'" data-row="'+mrow.rowId+'">'+(mrow.rowId+1)+'</div>';
+    });
+    html+='</div>';
+    html+='<div class="legend"><span class="sw"><span class="box on"></span> terjadwal di sel ini</span>'
+        +'<span class="sw"><span class="box off"></span> tidak / kosong</span>'
+        +'<span class="count mono">'+masterRows.length+' equipment</span></div>';
+    body.innerHTML=html; body.scrollTop=0;
+    body.querySelectorAll(".eqbox.on").forEach(function(b){
+      b.addEventListener("click",function(){ openDetail(+b.getAttribute("data-row")); });
+    });
+  }
+  // LEVEL 2: detail satu equipment di sel ini
+  function openDetail(rowId){
+    var wi=curCell.wi, mi=curCell.mi;
+    var list=buildScheduledByRow(wi,mi)[rowId]||[];
+    document.getElementById("m-back").style.display="";
+    document.getElementById("m-lab").textContent="Jadwal PM \u00B7 "+MONTHS[mi]+" "+WEEKS[wi];
+    document.getElementById("m-title").textContent=list.length?list[0].equipment:"-";
+    document.getElementById("m-count").textContent=list.length;
+    document.getElementById("m-count-lab").textContent="jadwal";
+    var body=document.getElementById("m-body");
+    var html="";
+    list.forEach(function(e){
+      var picHtml=e.pic?'<span class="pic">PIC: '+esc(e.pic)+'</span>':'<span class="pic none">PIC: -</span>';
+      var sub='<span class="k">Component:</span> '+esc(e.component||"-")
+            +' &nbsp;&middot;&nbsp; <span class="k">Action:</span> '+esc(e.action||"-")
+            +' &nbsp;&middot;&nbsp; <span class="k">Task:</span> '+esc(e.task||"-");
+      if(e.subassy) sub+=' &nbsp;&middot;&nbsp; <span class="k">Sub Assy:</span> '+esc(e.subassy);
+      html+='<div class="row">'
+          + '<div class="row-eq">'+esc(e.equipment)+'</div>'
+          + '<div class="row-sub">'+sub+'</div>'
+          + '<div class="row-meta">'+picHtml
+          +   (e.status?'<span class="status">'+esc(e.status)+'</span>':'')
+          +   '<span class="wk mono">W'+(e.week<10?"0":"")+e.week+'</span>'
+          +   '<span class="daterange mono">'+esc(e.range)+'</span>'
+          + '</div></div>';
+    });
+    body.innerHTML=html||'<div class="empty-msg">Tidak ada detail.</div>';
+    body.scrollTop=0;
+  }
+  
   function closeModal(){ overlay.classList.remove("open"); }
   document.getElementById("m-close").addEventListener("click",closeModal);
+  document.getElementById("m-back").addEventListener("click",renderGrid);
   overlay.addEventListener("click",function(e){ if(e.target===overlay) closeModal(); });
   document.addEventListener("keydown",function(e){ if(e.key==="Escape") closeModal(); });
 
@@ -329,7 +392,7 @@
     reader.onload=function(e){
       try{
         var res=parseWorkbook(new Uint8Array(e.target.result));
-        rawEntries=res.raw;
+        rawEntries=res.raw; masterRows=res.masters;
         rebuildCells(); renderBoard();
         document.getElementById("totalNum").textContent=res.tasks;
         refreshTotals(res.sched+" jadwal \u00B7 "+res.distinct+" equipment \u00B7 "+getYear());
