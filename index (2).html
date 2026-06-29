@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Calendar PM Monitoring - Cipta Mortar Utama</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  :root{
+    --ink:#0f172a; --muted:#64748b; --faint:#94a3b8;
+    --line:#e2e8f0; --line2:#f1f5f9;
+    --blue:#1d4ed8; --red:#e2574c; --red-soft:#fde0dc;
+    --bg:#f8fafc; --panel:#ffffff;
+  }
+  body{ margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; padding:24px; }
+  .wrap{ max-width:1040px; margin:0 auto; }
+  .mono{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+
+  .head{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
+    gap:16px; border-bottom:2px solid var(--ink); padding-bottom:12px; margin-bottom:16px; }
+  .brand{ display:flex; align-items:center; gap:14px; min-width:0; flex:1 1 auto; }
+  .logo-card{ display:inline-flex; align-items:center; justify-content:center; background:#fff;
+    border:1px solid var(--line); border-radius:16px; padding:10px 16px;
+    box-shadow:0 6px 18px rgba(15,23,42,.07); flex-shrink:0; }
+  .logo{ height:48px; width:auto; display:block; object-fit:contain; }
+  .titles{ min-width:0; }
+  .head h1{ font-size:clamp(15px,2.4vw,21px); margin:0; letter-spacing:-.01em; line-height:1.25; }
+  .head .sub{ font-size:12px; color:var(--muted); margin-top:3px; }
+  .total{ text-align:right; flex-shrink:0; }
+  .total-label{ font-size:12px; color:var(--muted); }
+  .total-num{ font-size:26px; font-weight:700; line-height:1; }
+  .total-note{ font-size:11px; color:var(--faint); }
+
+  .uploadbar{ display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px; margin-bottom:16px; }
+  .upbtn{ display:inline-flex; align-items:center; gap:8px; background:var(--blue); color:#fff;
+    border:0; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer; }
+  .upbtn:hover{ background:#1e40af; }
+  .yearbox{ display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+  .yearbox input{ width:74px; padding:6px 8px; border:1px solid var(--line); border-radius:7px;
+    font-size:13px; font-family:inherit; }
+  .upinfo{ font-size:12px; color:var(--muted); }
+  .upinfo b{ color:var(--ink); }
+  .upstatus{ font-size:12px; margin-left:auto; }
+  .upstatus.ok{ color:#047857; } .upstatus.err{ color:#b91c1c; }
+
+  .board{ background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  table{ width:100%; border-collapse:collapse; font-size:12px; min-width:760px; }
+  th.month{ padding:8px 4px; color:var(--blue); font-weight:600; text-align:center; border-bottom:1px solid var(--line); }
+  td.week, th.corner{ position:sticky; left:0; background:var(--panel); z-index:1; }
+  td.week{ padding:4px 8px; color:var(--blue); font-weight:700; text-align:center; border-right:1px solid var(--line); }
+  td.cell{ height:64px; vertical-align:top; padding:4px; cursor:pointer; border:1px solid var(--line2); transition:background .12s; }
+  td.cell:hover{ background:#eff6ff; }
+  td.cell.empty{ cursor:default; } td.cell.empty:hover{ background:transparent; }
+  .cell-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:4px; }
+  .cell-count{ font-size:10px; color:var(--faint); flex-shrink:0; }
+  .minigrid{ display:grid; gap:1px; }
+  .minidot{ width:3px; height:3px; border-radius:1px; }
+  tr.sum td{ background:var(--bg); text-align:center; font-size:10px; color:var(--muted); padding:4px 0; }
+  tr.sum td.corner{ color:var(--faint); font-weight:600; }
+  .hint{ font-size:11px; color:var(--faint); margin-top:8px; }
+
+  .overlay{ position:fixed; inset:0; background:rgba(15,23,42,.4); display:none;
+    align-items:center; justify-content:center; padding:16px; z-index:50; }
+  .overlay.open{ display:flex; }
+  .modal{ background:var(--panel); border-radius:12px; box-shadow:0 20px 50px rgba(0,0,0,.25);
+    width:100%; max-width:600px; max-height:90vh; display:flex; flex-direction:column; }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--line); }
+  .modal-head .lab{ font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--faint); font-weight:600; }
+  .modal-head .ttl{ font-size:18px; font-weight:700; line-height:1.2; }
+  .modal-head .cnt{ font-size:20px; font-weight:700; line-height:1; }
+  .modal-head .cnt-lab{ font-size:10px; color:var(--faint); }
+  .x{ width:32px; height:32px; border:0; background:transparent; border-radius:8px; cursor:pointer; font-size:16px; color:var(--muted); }
+  .x:hover{ background:var(--line2); }
+  .modal-body{ padding:12px 16px; overflow:auto; -webkit-overflow-scrolling:touch; }
+
+  .row{ border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:10px; border-left:4px solid var(--red); }
+  .row-eq{ font-weight:700; font-size:14px; }
+  .row-sub{ font-size:12px; color:var(--muted); margin-top:3px; line-height:1.5; }
+  .row-sub .k{ color:var(--faint); }
+  .row-meta{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px; font-size:11px; }
+  .pic{ background:#eff6ff; color:var(--blue); border-radius:6px; padding:2px 8px; font-weight:600; }
+  .pic.none{ background:var(--line2); color:var(--faint); }
+  .status{ background:var(--line2); color:var(--muted); border-radius:6px; padding:2px 8px; }
+  .daterange{ margin-left:auto; color:var(--faint); }
+  .wk{ background:#fef2f2; color:var(--red); border-radius:6px; padding:2px 8px; font-weight:600; }
+  .empty-msg{ color:var(--muted); font-size:13px; text-align:center; padding:24px 0; }
+
+  @media (max-width:560px){
+    body{ padding:14px; }
+    .logo-card{ padding:8px 12px; border-radius:14px; } .logo{ height:38px; }
+    .brand{ gap:10px; flex:1 1 100%; }
+    .total{ flex:1 1 100%; text-align:left; } .total-num{ font-size:22px; }
+    .upstatus{ margin-left:0; flex:1 1 100%; }
+    .daterange{ margin-left:0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="brand">
+      <span class="logo-card">
+        <img class="logo" src="logo-MU-new-hires-01.webp" alt="Mortar Utama - Saint-Gobain" />
+      </span>
+      <div class="titles">
+        <h1>Calendar PM Monitoring PT. Cipta Mortar Utama</h1>
+        <div class="sub mono" id="clock">&mdash;</div>
+      </div>
+    </div>
+    <div class="total">
+      <div class="total-label">Total Task</div>
+      <div class="total-num mono" id="totalNum">0</div>
+      <div class="total-note mono" id="totalNote">belum ada data</div>
+    </div>
+  </div>
+
+  <div class="uploadbar">
+    <button class="upbtn" id="upbtn">&#128193; Upload file Excel</button>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" />
+    <label class="yearbox">Tahun jadwal: <input type="number" id="yearInput" value="2026" min="2000" max="2100" /></label>
+    <div class="upinfo">Otomatis membaca <b>Equipment, Component, Action, Task, PIC</b> &amp; minggu (W01&ndash;W52). Pemetaan minggu&rarr;bulan pakai kalender ISO sesuai tahun.</div>
+    <div class="upstatus" id="upstatus"></div>
+  </div>
+
+  <div class="board"><table id="board"></table></div>
+  <div class="hint" id="hint">Upload file Excel dulu, lalu klik sel merah untuk melihat detail jadwal.</div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal">
+    <div class="modal-head">
+      <div>
+        <div class="lab">Jadwal PM</div>
+        <div class="ttl" id="m-title">&mdash;</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px">
+        <div style="text-align:right">
+          <div class="cnt mono" id="m-count">0</div>
+          <div class="cnt-lab">jadwal</div>
+        </div>
+        <button class="x" id="m-close">&times;</button>
+      </div>
+    </div>
+    <div class="modal-body" id="m-body"></div>
+  </div>
+</div>
+
+<script>
+  var MONTHS=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+  var WEEKS=["W1","W2","W3","W4","W5"];
+
+  var rawEntries=[];          // entri mentah dari Excel (punya nomor minggu)
+  var cellEntries=[];         // [wom 0..4][month 0..11] -> array entri (hasil pemetaan tahun)
+  function emptyCells(){ var a=[]; for(var w=0;w<5;w++){a.push([]);for(var m=0;m<12;m++)a[w].push([]);} return a; }
+  cellEntries=emptyCells();
+
+  function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function getYear(){ var y=parseInt(document.getElementById("yearInput").value,10); return (y>=2000&&y<=2100)?y:2026; }
+
+  // ===== KALENDER ISO: Senin minggu ke-w (UTC) =====
+  function isoMonday(y,w){
+    var jan4=new Date(Date.UTC(y,0,4));
+    var dow=(jan4.getUTCDay()+6)%7;              // Senin=0 .. Minggu=6
+    var wk1=new Date(jan4); wk1.setUTCDate(jan4.getUTCDate()-dow);
+    var mon=new Date(wk1);  mon.setUTCDate(wk1.getUTCDate()+(w-1)*7);
+    return mon;
+  }
+  // minggu w -> {mi (bulan 0-11), wom (1-5), mon, sun}  (pakai Kamis sbg wakil bulan)
+  function mapWeek(w,y){
+    var thu=isoMonday(y,w); thu.setUTCDate(thu.getUTCDate()+3);
+    var mi=thu.getUTCMonth();
+    var wom=Math.min(5, Math.floor((thu.getUTCDate()-1)/7)+1);
+    var mon=isoMonday(y,w), sun=new Date(mon); sun.setUTCDate(mon.getUTCDate()+6);
+    return {mi:mi, wom:wom, mon:mon, sun:sun};
+  }
+  function fmtD(d){ return d.getUTCDate()+" "+MONTHS[d.getUTCMonth()]; }
+
+  // ===== BACA EXCEL =====
+  function parseWorkbook(data){
+    var wb=XLSX.read(data,{type:'array'});
+    var ws=wb.Sheets[wb.SheetNames[0]];
+    var rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:""});
+
+    var hr=-1;
+    for(var i=0;i<rows.length;i++){
+      if(rows[i].some(function(c){return String(c).trim().toLowerCase()==="equipment";})){ hr=i; break; }
+    }
+    if(hr<0) throw new Error("Header 'Equipment' tidak ditemukan di sheet.");
+    var H=rows[hr].map(function(c){return String(c).trim();});
+    function colOf(name){ for(var c=0;c<H.length;c++) if(H[c].toLowerCase()===name.toLowerCase()) return c; return -1; }
+
+    var cEq=colOf("Equipment"), cSub=colOf("SUB ASSY"), cComp=colOf("Component"),
+        cAct=colOf("Action"), cTask=colOf("Task"), cPic=colOf("PIC"), cStat=colOf("Status");
+    if(cEq<0) throw new Error("Kolom 'Equipment' tidak ada.");
+
+    // kolom minggu (W01/W 1/WEEK 1/MINGGU 1) + PIC tepat setelahnya
+    var weekCols=[];
+    for(var c=0;c<H.length;c++){
+      var m=/^(?:W|WEEK|MINGGU)\s*0*(\d+)$/i.exec(H[c]);
+      if(m){
+        var picCol=(H[c+1]&&H[c+1].toLowerCase()==="pic")?c+1:-1;
+        weekCols.push({col:c, wk:parseInt(m[1],10), picCol:picCol});
+      }
+    }
+    if(weekCols.length===0) throw new Error("Tidak ada kolom minggu (W01, W02, ...).");
+
+    var raw=[], taskSet={}, taskCount=0;
+    for(var r=hr+1;r<rows.length;r++){
+      var row=rows[r]; if(!row) continue;
+      var eq=String(row[cEq]||"").trim();
+      if(!eq) continue;
+      taskCount++; taskSet[eq]=1;
+      var base={
+        equipment:eq,
+        subassy: cSub>=0?String(row[cSub]||"").trim():"",
+        component:cComp>=0?String(row[cComp]||"").trim():"",
+        action:cAct>=0?String(row[cAct]||"").trim():"",
+        task:cTask>=0?String(row[cTask]||"").trim():"",
+        pic:cPic>=0?String(row[cPic]||"").trim():"",
+        status:cStat>=0?String(row[cStat]||"").trim():""
+      };
+      for(var k=0;k<weekCols.length;k++){
+        var wc=weekCols[k];
+        var v=String(row[wc.col]||"").trim();
+        if(v!==""){
+          var pic=base.pic;
+          if(wc.picCol>=0){ var p2=String(row[wc.picCol]||"").trim(); if(p2) pic=p2; }
+          var e={}; for(var key in base) e[key]=base[key];
+          e.pic=pic; e.week=wc.wk; e.mark=v;
+          raw.push(e);
+        }
+      }
+    }
+    return {raw:raw, tasks:taskCount, distinct:Object.keys(taskSet).length, sched:raw.length, weeks:weekCols.length};
+  }
+
+  // tempatkan entri mentah ke sel sesuai tahun terpilih
+  function rebuildCells(){
+    var y=getYear();
+    cellEntries=emptyCells();
+    rawEntries.forEach(function(e){
+      var m=mapWeek(e.week,y);
+      var ee={}; for(var k in e) ee[k]=e[k];
+      ee.mi=m.mi; ee.wom=m.wom; ee.range=fmtD(m.mon)+" \u2013 "+fmtD(m.sun);
+      cellEntries[m.wom-1][m.mi].push(ee);
+    });
+  }
+
+  function miniGrid(count){
+    if(count<=0) return '';
+    var side=Math.max(1,Math.ceil(Math.sqrt(count)));
+    var html='<div class="minigrid" style="grid-template-columns:repeat('+side+',3px)">';
+    var cells=side*side;
+    for(var i=0;i<cells;i++){ html+='<span class="minidot" style="background:'+(i<count?"var(--red)":"var(--red-soft)")+'"></span>'; }
+    return html+'</div>';
+  }
+
+  function renderBoard(){
+    var html="<thead><tr><th class='corner'></th>";
+    MONTHS.forEach(function(m){ html+="<th class='month'>"+m+"</th>"; });
+    html+="</tr></thead><tbody>";
+    WEEKS.forEach(function(w,wi){
+      html+="<tr><td class='week'>"+w+"</td>";
+      MONTHS.forEach(function(m,mi){
+        var c=cellEntries[wi][mi].length;
+        var cls=c>0?"cell":"cell empty";
+        html+="<td class='"+cls+"' data-w='"+wi+"' data-m='"+mi+"' title='"+m+" "+w+" - "+c+" jadwal'>"
+            + "<div class='cell-top'>"+miniGrid(c)+(c>0?"<span class='cell-count mono'>"+c+"</span>":"")+"</div></td>";
+      });
+      html+="</tr>";
+    });
+    html+="<tr class='sum'><td class='corner week' style='background:var(--bg)'>&Sigma;</td>";
+    MONTHS.forEach(function(m,mi){ var t=0; for(var wi=0;wi<5;wi++) t+=cellEntries[wi][mi].length; html+="<td class='mono'>"+(t||"")+"</td>"; });
+    html+="</tr></tbody>";
+    document.getElementById("board").innerHTML=html;
+    document.querySelectorAll("td.cell").forEach(function(td){
+      if(td.classList.contains("empty")) return;
+      td.addEventListener("click",function(){ openCell(+td.getAttribute("data-w"), +td.getAttribute("data-m")); });
+    });
+  }
+
+  var overlay=document.getElementById("overlay");
+  function openCell(wi,mi){
+    var list=cellEntries[wi][mi];
+    document.getElementById("m-title").textContent=MONTHS[mi]+" \u00B7 "+WEEKS[wi];
+    document.getElementById("m-count").textContent=list.length;
+    var body=document.getElementById("m-body");
+    if(list.length===0){ body.innerHTML='<div class="empty-msg">Tidak ada jadwal di sel ini.</div>'; }
+    else{
+      var html="";
+      list.forEach(function(e){
+        var picHtml=e.pic?'<span class="pic">PIC: '+esc(e.pic)+'</span>':'<span class="pic none">PIC: -</span>';
+        var sub='<span class="k">Component:</span> '+esc(e.component||"-")
+              +' &nbsp;&middot;&nbsp; <span class="k">Action:</span> '+esc(e.action||"-")
+              +' &nbsp;&middot;&nbsp; <span class="k">Task:</span> '+esc(e.task||"-");
+        if(e.subassy) sub+=' &nbsp;&middot;&nbsp; <span class="k">Sub Assy:</span> '+esc(e.subassy);
+        html+='<div class="row">'
+            + '<div class="row-eq">'+esc(e.equipment)+'</div>'
+            + '<div class="row-sub">'+sub+'</div>'
+            + '<div class="row-meta">'+picHtml
+            +   (e.status?'<span class="status">'+esc(e.status)+'</span>':'')
+            +   '<span class="wk mono">W'+(e.week<10?"0":"")+e.week+'</span>'
+            +   '<span class="daterange mono">'+esc(e.range)+'</span>'
+            + '</div></div>';
+      });
+      body.innerHTML=html;
+    }
+    body.scrollTop=0; overlay.classList.add("open");
+  }
+  function closeModal(){ overlay.classList.remove("open"); }
+  document.getElementById("m-close").addEventListener("click",closeModal);
+  overlay.addEventListener("click",function(e){ if(e.target===overlay) closeModal(); });
+  document.addEventListener("keydown",function(e){ if(e.key==="Escape") closeModal(); });
+
+  function refreshTotals(extra){
+    document.getElementById("totalNote").textContent=extra;
+  }
+
+  var statusEl=document.getElementById("upstatus");
+  document.getElementById("upbtn").addEventListener("click",function(){ document.getElementById("fileInput").click(); });
+  document.getElementById("fileInput").addEventListener("change",function(ev){
+    var file=ev.target.files[0]; if(!file) return;
+    statusEl.className="upstatus"; statusEl.textContent="Membaca "+file.name+" ...";
+    var reader=new FileReader();
+    reader.onload=function(e){
+      try{
+        var res=parseWorkbook(new Uint8Array(e.target.result));
+        rawEntries=res.raw;
+        rebuildCells(); renderBoard();
+        document.getElementById("totalNum").textContent=res.tasks;
+        refreshTotals(res.sched+" jadwal \u00B7 "+res.distinct+" equipment \u00B7 "+getYear());
+        document.getElementById("hint").textContent="Klik sel merah untuk detail (Equipment, Component, Action, Task, PIC + rentang tanggal).";
+        statusEl.className="upstatus ok"; statusEl.textContent="\u2713 "+file.name+" terbaca ("+res.sched+" jadwal)";
+      }catch(err){
+        statusEl.className="upstatus err"; statusEl.textContent="Gagal: "+err.message;
+      }
+    };
+    reader.onerror=function(){ statusEl.className="upstatus err"; statusEl.textContent="Gagal membaca file."; };
+    reader.readAsArrayBuffer(file);
+  });
+
+  // ganti tahun -> peta ulang tanpa upload lagi
+  document.getElementById("yearInput").addEventListener("change",function(){
+    if(rawEntries.length){ rebuildCells(); renderBoard();
+      refreshTotals(rawEntries.length+" jadwal \u00B7 "+getYear()); }
+  });
+
+  var HARI=["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+  function pad(n){ return n<10?"0"+n:""+n; }
+  function tick(){
+    var d=new Date();
+    var tgl=HARI[d.getDay()]+", "+d.getDate()+" "+MONTHS[d.getMonth()]+" "+d.getFullYear();
+    var jam=pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds());
+    document.getElementById("clock").innerHTML=tgl+' &middot; <b style="color:var(--ink); font-size:14px">'+jam+'</b>';
+  }
+  tick(); setInterval(tick,1000);
+  renderBoard();
+</script>
+</body>
+</html>
