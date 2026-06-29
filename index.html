@@ -119,10 +119,10 @@
   </div>
 
   <div class="uploadbar">
-    <button class="upbtn" id="upbtn">&#128193; Upload file Excel</button>
+    <label class="yearbox"><b>1.</b> Tahun jadwal: <input type="number" id="yearInput" value="2025" min="2000" max="2100" /></label>
+    <button class="upbtn" id="upbtn">&#128193; 2. Upload file Excel</button>
     <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" />
-    <label class="yearbox">Tahun jadwal: <input type="number" id="yearInput" value="2026" min="2000" max="2100" /></label>
-    <div class="upinfo">Otomatis membaca <b>Equipment, Component, Action, Task, PIC</b> &amp; minggu (W01&ndash;W52). Pemetaan minggu&rarr;bulan pakai kalender ISO sesuai tahun.</div>
+    <div class="upinfo">Isi tahun sesuai data Excel, lalu upload. Sistem membaca <b>Equipment, Component, Action, Task, PIC</b> &amp; minggu (W01&ndash;W52), lalu memetakan ke kalender tahun tsb.</div>
     <div class="upstatus" id="upstatus"></div>
   </div>
 
@@ -159,7 +159,7 @@
   cellEntries=emptyCells();
 
   function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-  function getYear(){ var y=parseInt(document.getElementById("yearInput").value,10); return (y>=2000&&y<=2100)?y:2026; }
+  function getYear(){ var y=parseInt(document.getElementById("yearInput").value,10); return (y>=2000&&y<=2100)?y:2025; }
 
   // ===== KALENDER ISO: Senin minggu ke-w (UTC) =====
   function isoMonday(y,w){
